@@ -32,7 +32,7 @@ images:
 - '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA'
 
 # --- 新增日志配置 ---
-logsBucket: 'gs://your-cloud-build-logs-bucket' # 将 'your-cloud-build-logs-bucket' 替换为你的实际桶名
+logsBucket: 'gs://scorius-cloud-build-logs-bucket' # 将 'your-cloud-build-logs-bucket' 替换为你的实际桶名
 options:
   logging: GCS_ONLY
 # --- 新增日志配置结束 ---
