@@ -26,7 +26,7 @@ steps:
   # GCS 向量库 zip → 环境变量
   - --set-env-vars=VDB_ZIP_URI=${_VDB_ZIP_URI}
   # Secret Manager 中的 GOOGLE_API_KEY 注入
-  - --update-secrets=GOOGLE_API_KEY=google_api_key:latest   # 官方 --update-secrets 语法 :contentReference[oaicite:0]{index=0}
+  - --update-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest   # 官方 --update-secrets 语法 :contentReference[oaicite:0]{index=0}
 
 images:
 - '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA'
