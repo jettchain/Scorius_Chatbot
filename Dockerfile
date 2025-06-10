@@ -26,3 +26,5 @@ ENV VDB_DIR=/tmp/vdb/chroma_intent
 # 7) 启动命令：使用 Functions Framework 暴露 webhook
 #    --target 对应 main.py 中 @functions_framework.http 修饰的函数名
 CMD ["functions-framework", "--target", "dialogflow_webhook", "--port", "8080"]
+
+RUN ls -la /app
