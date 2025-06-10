@@ -1,0 +1,37 @@
+# cloudbuild.yaml
+steps:
+# -------- 1) 构建镜像 --------
+- name: gcr.io/cloud-builders/docker
+  args:
+  - build
+  - -t
+  - '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA'
+  - .
+
+# -------- 2) 推送镜像 --------
+- name: gcr.io/cloud-builders/docker
+  args: ['push', '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA']
+
+# -------- 3) 部署到 Cloud Run --------
+- name: gcr.io/cloud-builders/gcloud
+  args:
+  - run
+  - deploy
+  - scorius-chatbot
+  - --image=${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA
+  - --region=${_LOCATION}
+  - --platform=managed
+  - --port=8080
+  - --allow-unauthenticated
+  # GCS 向量库 zip → 环境变量
+  - --set-env-vars=VDB_ZIP_URI=${_VDB_ZIP_URI}
+  # Secret Manager 中的 GOOGLE_API_KEY 注入
+  - --update-secrets=GOOGLE_API_KEY=google_api_key:latest   # 官方 --update-secrets 语法 :contentReference[oaicite:0]{index=0}
+
+images:
+- '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA'
+
+substitutions:
+  _LOCATION: europe-west4
+  _VDB_ZIP_URI: gs://label_bucket_jichen/vectorstore/chroma_intent.zip
+timeout: '900s'
