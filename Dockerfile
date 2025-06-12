@@ -1,31 +1,30 @@
 # ─────────────────────────────────────────
-#  Dockerfile  for Dialogflow-CX RAG Bot
+#  Dockerfile for Dialogflow-CX RAG Bot (with baked-in vector DB)
 # ─────────────────────────────────────────
-# 1) 基础镜像：精简版 Python 3.10
 FROM python:3.10-slim
 
-# 2) 工作目录
 WORKDIR /app
 
-# 3) 系统依赖（faiss 需要 libgomp1）
+# 安装 unzip + FAISS 所需依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl unzip libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# 4) 复制并安装 Python 依赖
+# 安装 Python 依赖
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5) 复制源代码
+# 复制项目文件和向量库压缩包
 COPY . .
-COPY chroma_intent.zip /tmp/chroma_intent.zip
+COPY chroma_intent.zip /app/chroma_intent.zip
 
-# 6) 运行时环境变量（可在 gcloud run deploy 时覆盖）
-RUN mkdir -p /tmp/vdb/chroma_intent \
- && unzip -q /tmp/chroma_intent.zip -d /tmp/vdb/chroma_intent \
- && rm /tmp/chroma_intent.zip
+# 解压向量数据库到稳定路径（避免 /tmp 清空问题）
+RUN mkdir -p /app/vdb/chroma_intent \
+ && unzip -q /app/chroma_intent.zip -d /app/vdb/chroma_intent \
+ && rm /app/chroma_intent.zip
 
-ENV VDB_DIR=/tmp/vdb/chroma_intent
+# 设置环境变量（rag_model.py 要读取这个）
+ENV VDB_DIR=/app/vdb/chroma_intent
 
-# 7) 启动命令：使用 Functions Framework 暴露 webhook
+# 启动 Functions Framework，监听 webhook
 CMD ["functions-framework", "--target", "dialogflow_webhook", "--port", "8080"]
