@@ -21,7 +21,10 @@ COPY . .
 COPY chroma_intent.zip /tmp/chroma_intent.zip
 
 # 6) 运行时环境变量（可在 gcloud run deploy 时覆盖）
-RUN unzip -q /tmp/chroma_intent.zip -d /tmp/vdb && rm /tmp/chroma_intent.zip
+RUN mkdir -p /tmp/vdb/chroma_intent \
+ && unzip -q /tmp/chroma_intent.zip -d /tmp/vdb/chroma_intent \
+ && rm /tmp/chroma_intent.zip
+
 ENV VDB_DIR=/tmp/vdb/chroma_intent
 
 # 7) 启动命令：使用 Functions Framework 暴露 webhook
