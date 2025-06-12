@@ -27,21 +27,13 @@ LLM_NAME     = "gemini-2.0-flash-lite-001"
 
 # ─────────────────── 下载并解压向量库 ────────────────────
 def _ensure_vdb():
+    # ① 若目录已存在，直接返回
     if VDB_DIR.exists():
         return
-    if not VDB_ZIP_URI:
-        raise RuntimeError("VDB_ZIP_URI env var not set")
 
-    logging.info("⏬ Downloading vector DB: %s", VDB_ZIP_URI)
-
-    bucket, *blob_path = VDB_ZIP_URI.replace("gs://", "").split("/", 1)
-    data = storage.Client().bucket(bucket).blob(blob_path[0]).download_as_bytes()
-
-    VDB_DIR.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(io.BytesIO(data)) as zf:
-        zf.extractall(VDB_DIR.parent)
-
-    logging.info("✅ Vector DB ready at %s", VDB_DIR)
+    # ② 若不存在就报错（说明镜像构建漏了）
+    raise RuntimeError(f"Vector DB missing at {VDB_DIR}. "
+                       "Did you forget to bake chroma_intent into the image?")
 
 _ensure_vdb()
 
