@@ -23,7 +23,7 @@ steps:
   - --platform=managed
   - --port=8080
   - --allow-unauthenticated
-  - --memory=1Gi                 # ← 新增这一行
+  - --memory=2Gi                 # ← 新增这一行
   - --min-instances=1            # 建议同时常驻 1 个热实例
   - --cpu-boost
   # GCS 向量库 zip → 环境变量
