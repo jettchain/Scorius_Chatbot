@@ -27,13 +27,9 @@ LLM_NAME     = "gemini-2.0-flash-lite-001"
 
 # ─────────────────── 下载并解压向量库 ────────────────────
 def _ensure_vdb():
-    # ① 若目录已存在，直接返回
     if VDB_DIR.exists():
         return
-
-    # ② 若不存在就报错（说明镜像构建漏了）
-    raise RuntimeError(f"Vector DB missing at {VDB_DIR}. "
-                       "Did you forget to bake chroma_intent into the image?")
+    raise RuntimeError(f"Vector DB missing at {VDB_DIR}")
 
 _ensure_vdb()
 
