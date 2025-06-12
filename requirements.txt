@@ -10,7 +10,7 @@ chromadb==0.5.1
 faiss-cpu
 langchain-chroma==0.2.4 # <--- ADD THIS LINE!
 langchain-community==0.2.4 # <--- ADD THIS LINE! (Often needed for vector stores)
-langchain-core==0.2.4 # <--- ADD THIS LINE! (Core LangChain abstractions)
+langchain-core==0.2.6 # <--- ADD THIS LINE! (Core LangChain abstractions)
 
 # --- GCS ---
 google-cloud-storage>=2.14.0
