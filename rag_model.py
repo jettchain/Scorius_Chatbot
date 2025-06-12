@@ -52,7 +52,6 @@ _embedding = GeminiEmbeddings(model=EMBED_MODEL, task_type="CLASSIFICATION")
 chroma_cfg = Settings(
     chroma_db_impl="duckdb+parquet",
     persist_directory=str(VDB_DIR),  # 数据目录
-    read_only=True,                  # 只读模式
     anonymized_telemetry=False,      # 可选：关掉遥测
 )
 
