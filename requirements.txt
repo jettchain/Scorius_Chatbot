@@ -5,12 +5,12 @@ functions-framework==3.8.2
 google-generativeai>=0.4.0
 
 # --- 向量检索 ---
-langchain==0.2.11 # <--- 尝试一个更高的 0.2.x 版本，例如 0.2.11 (通常与 0.3.x 的 langchain-core 兼容)
+langchain==0.3.0 # <--- Upgrade to 0.3.0
 chromadb==0.5.1
 faiss-cpu
-langchain-chroma==0.2.11 # <--- 保持与 langchain 版本一致，或至少更新到与 0.2.11 兼容的最新 0.2.x 版本
-langchain-community==0.2.11 # <--- 保持与 langchain 版本一致
-langchain-core==0.2.11 
+langchain-chroma==0.3.0 # <--- Upgrade to 0.3.0 (This version *should* exist and be compatible)
+langchain-community==0.3.0 # <--- Upgrade to 0.3.0
+langchain-core==0.3.0 # <--- Upgrade to 0.3.0
 
 # --- GCS ---
 google-cloud-storage>=2.14.0
