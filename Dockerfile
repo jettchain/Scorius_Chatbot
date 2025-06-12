@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 5) 复制源代码
 COPY . .
+COPY chroma_intent/ /tmp/vdb/chroma_intent
 
 # 6) 运行时环境变量（可在 gcloud run deploy 时覆盖）
 ENV VDB_DIR=/tmp/vdb/chroma_intent
