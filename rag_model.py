@@ -21,9 +21,9 @@ from rag_utils      import build_prompt, extract_intents   # 你的辅助函数
 
 # ─────────────────── 环境变量 ────────────────────
 VDB_ZIP_URI = os.getenv("VDB_ZIP_URI")          # gs://bucket/path/chroma_intent.zip
-VDB_DIR      = pathlib.Path("/tmp/vdb/chroma_intent")
-EMBED_MODEL  = "models/gemini-embedding-exp-03-07"
-LLM_NAME     = "gemini-2.0-flash-lite-001"
+VDB_DIR = pathlib.Path(os.getenv("VDB_DIR", "/app/vdb/chroma_intent"))
+EMBED_MODEL = "models/gemini-embedding-exp-03-07"
+LLM_NAME = "gemini-2.0-flash-lite-001"
 
 # ─────────────────── 下载并解压向量库 ────────────────────
 def _ensure_vdb():
