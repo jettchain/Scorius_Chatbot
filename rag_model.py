@@ -13,7 +13,6 @@ from typing import List, Set
 from google.cloud import storage
 from vertexai.generative_models import GenerativeModel
 from langchain_chroma import Chroma
-from chromadb.config import Settings
 
 # ---- 依赖于你项目里的 util / embedding ----------------------------
 from rag_embeddings import GeminiEmbeddings          # 你的 Embeddings 类
@@ -49,16 +48,11 @@ _ensure_vdb()
 # ─────────────────── 初始化检索器 & LLM ────────────────────
 _embedding = GeminiEmbeddings(model=EMBED_MODEL, task_type="CLASSIFICATION")
 
-chroma_cfg = Settings(
-    chroma_db_impl="duckdb+parquet",
-    persist_directory=str(VDB_DIR),  # 数据目录
-    anonymized_telemetry=False,      # 可选：关掉遥测
-)
 
 _vectordb = Chroma(
     collection_name="intent_cls",
     embedding_function=_embedding,
-    client_settings=chroma_cfg,      # ← 这里不再传 dict
+    persist_directory=str(VDB_DIR),           # 只传这个路径
 )
 
 _retriever = _vectordb.as_retriever(search_kwargs={"k": 5})
