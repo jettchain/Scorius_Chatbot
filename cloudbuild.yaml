@@ -1,5 +1,14 @@
 # cloudbuild.yaml
 steps:
+- name: gcr.io/cloud-builders/gsutil
+  id: fetch-vdb-zip
+  args: [ "cp", "${_VDB_ZIP_URI}", "chroma_intent.zip" ]
+
+  # 0-b) 解压到本地目录 chroma_intent/
+- name: ubuntu
+  id: unzip-vdb
+  entrypoint: bash
+  args: [ "-c", "mkdir -p chroma_intent && unzip -q chroma_intent.zip -d chroma_intent" ]
 # -------- 1) 构建镜像 --------
 - name: gcr.io/cloud-builders/docker
   args:
