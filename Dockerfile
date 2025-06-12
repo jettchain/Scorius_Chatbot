@@ -18,9 +18,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 5) 复制源代码
 COPY . .
-COPY chroma_intent/ /tmp/vdb/chroma_intent
+COPY chroma_intent.zip /tmp/chroma_intent.zip
 
 # 6) 运行时环境变量（可在 gcloud run deploy 时覆盖）
+RUN unzip -q /tmp/chroma_intent.zip -d /tmp/vdb && rm /tmp/chroma_intent.zip
 ENV VDB_DIR=/tmp/vdb/chroma_intent
 
 # 7) 启动命令：使用 Functions Framework 暴露 webhook
