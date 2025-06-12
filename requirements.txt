@@ -5,7 +5,7 @@ functions-framework==3.8.2
 google-generativeai>=0.4.0
 
 # --- 向量检索 ---
-chromadb==0.5.1
+# chromadb==0.5.1
 faiss-cpu
 langchain-chroma==0.2.4
 
