@@ -23,6 +23,9 @@ steps:
   - --platform=managed
   - --port=8080
   - --allow-unauthenticated
+  - --memory=1Gi                 # ← 新增这一行
+  - --min-instances=1            # 建议同时常驻 1 个热实例
+  - --cpu-boost
   # GCS 向量库 zip → 环境变量
   - --set-env-vars=VDB_ZIP_URI=${_VDB_ZIP_URI}
   # Secret Manager 中的 GOOGLE_API_KEY 注入
