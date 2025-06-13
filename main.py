@@ -1,3 +1,27 @@
+# ── OpenTelemetry + Cloud Trace 配置 ──────────────────
+from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+
+# 必须在任何业务 import 之前完成
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")     # Cloud Run 自动注入
+service_resource = Resource.create({"service.name": "scorius-chatbot"})
+
+provider = TracerProvider(resource=service_resource)
+provider.add_span_processor(
+    BatchSpanProcessor(CloudTraceSpanExporter(project_id=PROJECT_ID))
+)
+trace.set_tracer_provider(provider)
+tracer = trace.get_tracer(__name__)
+
+# 自动给 requests / Flask 打点
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+RequestsInstrumentor().instrument()  # 外部 HTTP 调用 Trace
+FlaskInstrumentor().instrument_app(functions_framework.Flask(__name__))
+
 # main.py  ───── 使用 RAG 分类器版本 ─────────────────────────
 
 import logging, os, functions_framework
