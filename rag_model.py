@@ -55,32 +55,16 @@ _model = GenerativeModel(
 
 # ─────────────────── 对外推断函数 ────────────────────
 def rag_predict(text: str) -> str:
-    with tracer.start_as_current_span("RAG"):
-        with tracer.start_as_current_span("embed"):
-            emb = _embedding.embed_query(text)
-
-        with tracer.start_as_current_span("retrieve"):
-            docs = _retriever.get_relevant_documents(text, k=3)
-
-        prompt, _ = build_prompt(text, retriever=_retriever, k=3)
-
-        with tracer.start_as_current_span("generate"):
-            resp = _model.generate_content(prompt).text
-
-        labels = extract_intents(resp)
+    """
+    对用户回答进行多标签主题识别。
+    返回逗号分隔的小写 label 串；若无命中则返回 "none".
+    """
+    try:
+        prompt, _ = build_prompt(text, retriever=_retriever, k=5)
+        resp = _model.generate_content(prompt).text
+        labels: Set[str] = extract_intents(resp)
         return ", ".join(sorted(labels)) if labels else "none"
-
-# def rag_predict(text: str) -> str:
-#     """
-#     对用户回答进行多标签主题识别。
-#     返回逗号分隔的小写 label 串；若无命中则返回 "none".
-#     """
-#     try:
-#         prompt, _ = build_prompt(text, retriever=_retriever, k=5)
-#         resp = _model.generate_content(prompt).text
-#         labels: Set[str] = extract_intents(resp)
-#         return ", ".join(sorted(labels)) if labels else "none"
-#     except Exception as exc:      # 兜底，别让会话崩溃
-#         logging.exception("RAG prediction failed: %s", exc)
-#         return "none"
+    except Exception as exc:      # 兜底，别让会话崩溃
+        logging.exception("RAG prediction failed: %s", exc)
+        return "none"
 
