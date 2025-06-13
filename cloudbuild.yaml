@@ -1,51 +1,96 @@
-# cloudbuild.yaml
+## cloudbuild.yaml
+#steps:
+#- name: gcr.io/cloud-builders/gsutil
+#  id: fetch-vdb-zip
+#  args: ["cp", "${_VDB_ZIP_URI}", "chroma_intent.zip"]
+#
+## -------- 1) 构建镜像 --------
+#- name: gcr.io/cloud-builders/docker
+#  args:
+#  - build
+#  - -t
+#  - '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA'
+#  - .
+#
+## -------- 2) 推送镜像 --------
+#- name: gcr.io/cloud-builders/docker
+#  args: ['push', '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA']
+#
+## -------- 3) 部署到 Cloud Run --------
+#- name: gcr.io/cloud-builders/gcloud
+#  args:
+#  - run
+#  - deploy
+#  - scorius-chatbot
+#  - --image=${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA
+#  - --region=${_LOCATION}
+#  - --platform=managed
+#  - --port=8080
+#  - --allow-unauthenticated
+#  - --memory=4Gi
+#  - --cpu=4
+#  - --min-instances=10            # 建议同时常驻 1 个热实例
+#  - --cpu-boost
+#  # GCS 向量库 zip → 环境变量
+#  - --set-env-vars=VDB_ZIP_URI=${_VDB_ZIP_URI}
+#  # Secret Manager 中的 GOOGLE_API_KEY 注入
+#  - --update-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest   # 官方 --update-secrets 语法 :contentReference[oaicite:0]{index=0}
+#
+#images:
+#- '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA'
+#
+## --- 新增日志配置 ---
+#logsBucket: 'gs://scorius-cloud-build-logs-bucket' # 将 'your-cloud-build-logs-bucket' 替换为你的实际桶名
+#options:
+#  logging: GCS_ONLY
+## --- 新增日志配置结束 ---
+#
+#substitutions:
+#  _LOCATION: europe-west4
+#  _VDB_ZIP_URI: gs://label_bucket_jichen/vectorstore/chroma_intent.zip
+#timeout: '900s'
+# cloudbuild.yaml (版本3：最终版)
 steps:
+# 步骤 1: 从 GCS 下载向量数据库压缩包
 - name: gcr.io/cloud-builders/gsutil
   id: fetch-vdb-zip
   args: ["cp", "${_VDB_ZIP_URI}", "chroma_intent.zip"]
 
-# -------- 1) 构建镜像 --------
-- name: gcr.io/cloud-builders/docker
-  args:
-  - build
-  - -t
-  - '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA'
-  - .
-
-# -------- 2) 推送镜像 --------
-- name: gcr.io/cloud-builders/docker
-  args: ['push', '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA']
-
-# -------- 3) 部署到 Cloud Run --------
+# 步骤 2: 创建目录并解压向量数据库
 - name: gcr.io/cloud-builders/gcloud
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    mkdir -p vdb/chroma_intent && \
+    unzip -q chroma_intent.zip -d vdb/chroma_intent && \
+    rm chroma_intent.zip
+
+# 步骤 3: 直接从源码部署到 Cloud Run (将自动使用 Buildpacks)
+- name: 'gcr.io/cloud-builders/gcloud'
   args:
   - run
   - deploy
   - scorius-chatbot
-  - --image=${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA
+  - --source=.
   - --region=${_LOCATION}
   - --platform=managed
   - --port=8080
   - --allow-unauthenticated
   - --memory=4Gi
   - --cpu=4
-  - --min-instances=10            # 建议同时常驻 1 个热实例
+  - --min-instances=1
   - --cpu-boost
-  # GCS 向量库 zip → 环境变量
-  - --set-env-vars=VDB_ZIP_URI=${_VDB_ZIP_URI}
-  # Secret Manager 中的 GOOGLE_API_KEY 注入
-  - --update-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest   # 官方 --update-secrets 语法 :contentReference[oaicite:0]{index=0}
+  - --set-env-vars=VDB_DIR=/workspace/vdb/chroma_intent
+  - --update-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest
 
-images:
-- '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/scorius-chatbot/scorius-chatbot:$SHORT_SHA'
-
-# --- 新增日志配置 ---
-logsBucket: 'gs://scorius-cloud-build-logs-bucket' # 将 'your-cloud-build-logs-bucket' 替换为你的实际桶名
+# --- 恢复日志配置 ---
+logsBucket: 'gs://scorius-cloud-build-logs-bucket'
 options:
   logging: GCS_ONLY
-# --- 新增日志配置结束 ---
+# --- 日志配置结束 ---
 
 substitutions:
   _LOCATION: europe-west4
   _VDB_ZIP_URI: gs://label_bucket_jichen/vectorstore/chroma_intent.zip
-timeout: '900s'
+timeout: '1200s'
