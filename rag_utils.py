@@ -20,10 +20,11 @@ def extract_intents(text: str):
     return {i for i in INTENTS if i in text_l}
 
 def build_prompt(query: str, *, retriever, k: int = 5, dbg: bool = False):
-    retrieved = [
-        d for d in retriever.get_relevant_documents(query, k=k)
-        if d.page_content.strip() != query.strip()
-    ]
+    # retrieved = [
+    #     d for d in retriever.get_relevant_documents(query, k=k)
+    #     if d.page_content.strip() != query.strip()
+    # ]
+    retrieved = retriever.get_relevant_documents(query, k=k)
     if dbg:
         print(f"[DBG] hit {len(retrieved)} docs for query='{query[:60]}…'")
     shots = "\n\n".join(
