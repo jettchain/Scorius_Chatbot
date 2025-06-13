@@ -62,6 +62,7 @@ steps:
   args:
   - '-c'
   - |
+    apt-get update && apt-get install -y unzip && \
     mkdir -p vdb/chroma_intent && \
     unzip -q chroma_intent.zip -d vdb/chroma_intent && \
     rm chroma_intent.zip
