@@ -1,0 +1,1 @@
+web: functions-framework --target=dialogflow_webhook --port=$PORT
