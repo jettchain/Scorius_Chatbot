@@ -2,11 +2,14 @@
 functions-framework==3.8.2
 
 # --- Google GenAI REST (RAG) ---
-google-generativeai>=0.4.0
+google-generativeai>=0.8.5
 
 # --- 向量检索 ---
 faiss-cpu
 langchain-chroma==0.2.4
+langchain-core==0.3.63
+langchain-community==0.3.24
+langchain==0.3.25
 
 # --- GCS ---
 google-cloud-storage>=2.14.0
