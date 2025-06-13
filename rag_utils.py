@@ -32,13 +32,3 @@ def build_prompt(query: str, *, retriever, k: int = 5, dbg: bool = False):
     )
     full_prompt = f"{PROMPT_HEAD}\n\n{shots}\n\nUser: {query}\nmodel:"
     return full_prompt, shots
-# def build_prompt(query: str, *, retriever, k: int = 5, dbg: bool = False):
-#     t0 = time.time()
-#     docs = retriever.get_relevant_documents(query, k=k)
-#     t1 = time.time()
-#     logging.info(f"[PROFILE] retriever.get_relevant_documents(k={k}) took {(t1-t0):.3f}s, got {len(docs)} docs")
-#
-#     retrieved = [d for d in docs if d.page_content.strip() != query.strip()]
-#     shots = "\n\n".join(f"User: {d.page_content}\nmodel: {d.metadata['label']}" for d in retrieved)
-#     full_prompt = f"{PROMPT_HEAD}\n\n{shots}\n\nUser: {query}\nmodel:"
-#     return full_prompt, shots
