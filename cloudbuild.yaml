@@ -94,4 +94,4 @@ options:
 substitutions:
   _LOCATION: europe-west4
   _VDB_ZIP_URI: gs://label_bucket_jichen/vectorstore/chroma_intent.zip
-timeout: '1200s'
+timeout: '900s'
