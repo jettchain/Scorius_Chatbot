@@ -1,34 +1,12 @@
-# ── OpenTelemetry + Cloud Trace 配置 ──────────────────
-from opentelemetry import trace
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
-
-# 必须在任何业务 import 之前完成
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")     # Cloud Run 自动注入
-service_resource = Resource.create({"service.name": "scorius-chatbot"})
-
-provider = TracerProvider(resource=service_resource)
-provider.add_span_processor(
-    BatchSpanProcessor(CloudTraceSpanExporter(project_id=PROJECT_ID))
-)
-trace.set_tracer_provider(provider)
-tracer = trace.get_tracer(__name__)
-
-# 自动给 requests / Flask 打点
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
-RequestsInstrumentor().instrument()  # 外部 HTTP 调用 Trace
-FlaskInstrumentor().instrument_app(functions_framework.Flask(__name__))
 
 # main.py  ───── 使用 RAG 分类器版本 ─────────────────────────
-
+import tracing_bootstrap
 import logging, os, functions_framework
 from typing import Dict, Any
-
 from dialog_manager import process_turn
 from rag_model       import rag_predict      # ← 新增
+from opentelemetry import trace
+tracer = trace.get_tracer(__name__)
 
 # ── 运行时环境变量（仅保留需要的） ──────────────────────────
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")   # 已由 Cloud Run env 注入
@@ -73,15 +51,38 @@ def handle_gemini(req_json: Dict[str, Any]) -> Dict[str, Any]:
 # ── Cloud Functions entry for Cloud Run ──────────────────
 @functions_framework.http
 def dialogflow_webhook(request):
-    try:
-        body = request.get_json(force=True, silent=True)
-        if body.get("fulfillmentInfo", {}).get("tag") != "gemini":
-            raise ValueError("Unsupported tag")
-        return handle_gemini(body)
-    except Exception:
-        logging.exception("Webhook crashed")
-        return {
-            "fulfillment_response": {
-                "messages": [{"text": {"text": ["⚠️ Webhook error"]}}]
-            }
-        }, 200
+    # ① 整条 Webhook 建一个顶级 span
+    with tracer.start_as_current_span("dialogflow_webhook"):
+
+        try:
+            body = request.get_json(force=True, silent=True)
+
+            # ② 把判 tag 写在 span 里，出错更好追踪
+            if body.get("fulfillmentInfo", {}).get("tag") != "gemini":
+                raise ValueError("Unsupported tag")
+
+            # ③ 正常业务
+            return handle_gemini(body)
+
+        except Exception:
+            # Trace 会自动把异常标红；同时保留旧的日志
+            logging.exception("Webhook crashed")
+            return {
+                "fulfillment_response": {
+                    "messages": [{"text": {"text": [" Webhook error"]}}]
+                }
+            }, 200
+# @functions_framework.http
+# def dialogflow_webhook(request):
+#     try:
+#         body = request.get_json(force=True, silent=True)
+#         if body.get("fulfillmentInfo", {}).get("tag") != "gemini":
+#             raise ValueError("Unsupported tag")
+#         return handle_gemini(body)
+#     except Exception:
+#         logging.exception("Webhook crashed")
+#         return {
+#             "fulfillment_response": {
+#                 "messages": [{"text": {"text": ["⚠️ Webhook error"]}}]
+#             }
+#         }, 200
