@@ -4,7 +4,6 @@ rag_model.py
 • 首次冷启动：从 GCS 下载 chroma_intent.zip → 解压到 /tmp/vdb → 初始化 Chroma + Gemini-Flash
 • 提供 rag_predict(text:str) → 逗号分隔的标签串（或 "none"）
 """
-
 from __future__ import annotations
 import io, os, zipfile, pathlib, logging
 from typing import List, Set
@@ -50,40 +49,38 @@ _model = GenerativeModel(
         "temperature": 0.1,
         "top_k": 3,
         "top_p": 0.5,
-        "max_output_tokens": 1024,
+        "max_output_tokens": 128,
     },
 )
 
 # ─────────────────── 对外推断函数 ────────────────────
 def rag_predict(text: str) -> str:
-    """
-    对用户回答进行多标签主题识别。
-    返回逗号分隔的小写 label 串；若无命中则返回 "none".
-    """
-    try:
-        prompt, _ = build_prompt(text, retriever=_retriever, k=5)
-        resp = _model.generate_content(prompt).text
-        labels: Set[str] = extract_intents(resp)
+    with tracer.start_as_current_span("RAG"):
+        with tracer.start_as_current_span("embed"):
+            emb = _embedding.embed_query(text)
+
+        with tracer.start_as_current_span("retrieve"):
+            docs = _retriever.get_relevant_documents(text, k=3)
+
+        prompt, _ = build_prompt(text, retriever=_retriever, k=3)
+
+        with tracer.start_as_current_span("generate"):
+            resp = _model.generate_content(prompt).text
+
+        labels = extract_intents(resp)
         return ", ".join(sorted(labels)) if labels else "none"
-    except Exception as exc:      # 兜底，别让会话崩溃
-        logging.exception("RAG prediction failed: %s", exc)
-        return "none"
+
 # def rag_predict(text: str) -> str:
-#     t0 = time.time()
-#     prompt, _ = build_prompt(text, retriever=_retriever, k=5)
-#     t1 = time.time()
-#     logging.info(f"[PROFILE] build_prompt took {(t1-t0):.3f}s")
-#
+#     """
+#     对用户回答进行多标签主题识别。
+#     返回逗号分隔的小写 label 串；若无命中则返回 "none".
+#     """
 #     try:
-#         logging.info(f"[PROFILE] calling LLM.generate_content …")
+#         prompt, _ = build_prompt(text, retriever=_retriever, k=5)
 #         resp = _model.generate_content(prompt).text
-#         t2 = time.time()
-#         logging.info(f"[PROFILE] LLM.generate_content took {(t2-t1):.3f}s")
-#     except Exception as exc:
+#         labels: Set[str] = extract_intents(resp)
+#         return ", ".join(sorted(labels)) if labels else "none"
+#     except Exception as exc:      # 兜底，别让会话崩溃
 #         logging.exception("RAG prediction failed: %s", exc)
 #         return "none"
-#
-#     labels = extract_intents(resp)
-#     t3 = time.time()
-#     logging.info(f"[PROFILE] extract_intents took {(t3-t2):.3f}s")
-#     return ", ".join(sorted(labels)) if labels else "none"
+
