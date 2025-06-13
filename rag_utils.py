@@ -1,5 +1,4 @@
 # rag_utils.py
-import time, logging
 
 INTENTS = [i.lower() for i in [
     "Uitdaging","Persoonlijke ontwikkeling","Sfeer","Autonomie","Samenwerking",
@@ -20,25 +19,25 @@ def extract_intents(text: str):
     text_l = text.lower()
     return {i for i in INTENTS if i in text_l}
 
-# def build_prompt(query: str, *, retriever, k: int = 5, dbg: bool = False):
-#     retrieved = [
-#         d for d in retriever.get_relevant_documents(query, k=k)
-#         if d.page_content.strip() != query.strip()
-#     ]
-#     if dbg:
-#         print(f"[DBG] hit {len(retrieved)} docs for query='{query[:60]}…'")
-#     shots = "\n\n".join(
-#         f"User: {d.page_content}\nmodel: {d.metadata['label']}" for d in retrieved
-#     )
-#     full_prompt = f"{PROMPT_HEAD}\n\n{shots}\n\nUser: {query}\nmodel:"
-#     return full_prompt, shots
 def build_prompt(query: str, *, retriever, k: int = 5, dbg: bool = False):
-    t0 = time.time()
-    docs = retriever.get_relevant_documents(query, k=k)
-    t1 = time.time()
-    logging.info(f"[PROFILE] retriever.get_relevant_documents(k={k}) took {(t1-t0):.3f}s, got {len(docs)} docs")
-
-    retrieved = [d for d in docs if d.page_content.strip() != query.strip()]
-    shots = "\n\n".join(f"User: {d.page_content}\nmodel: {d.metadata['label']}" for d in retrieved)
+    retrieved = [
+        d for d in retriever.get_relevant_documents(query, k=k)
+        if d.page_content.strip() != query.strip()
+    ]
+    if dbg:
+        print(f"[DBG] hit {len(retrieved)} docs for query='{query[:60]}…'")
+    shots = "\n\n".join(
+        f"User: {d.page_content}\nmodel: {d.metadata['label']}" for d in retrieved
+    )
     full_prompt = f"{PROMPT_HEAD}\n\n{shots}\n\nUser: {query}\nmodel:"
     return full_prompt, shots
+# def build_prompt(query: str, *, retriever, k: int = 5, dbg: bool = False):
+#     t0 = time.time()
+#     docs = retriever.get_relevant_documents(query, k=k)
+#     t1 = time.time()
+#     logging.info(f"[PROFILE] retriever.get_relevant_documents(k={k}) took {(t1-t0):.3f}s, got {len(docs)} docs")
+#
+#     retrieved = [d for d in docs if d.page_content.strip() != query.strip()]
+#     shots = "\n\n".join(f"User: {d.page_content}\nmodel: {d.metadata['label']}" for d in retrieved)
+#     full_prompt = f"{PROMPT_HEAD}\n\n{shots}\n\nUser: {query}\nmodel:"
+#     return full_prompt, shots
