@@ -197,7 +197,7 @@ def _suggest_next_labels(*, current_label: str | None,
     cand: list[str] = []
     if current_label:
         grp = LABEL_META[current_label]["group"]
-        cand += [l for l in GROUP_to_LABELS[grp]
+        cand += [l for l in GROUP_TO_LABELS[grp]
                  if l not in asked_labels and FOLLOWUP_POOLS[ctx].get(l)]
     if len(cand) < 8:
         backlog = sorted(
