@@ -224,21 +224,16 @@ def process_turn(
     user_input = user_input or ""
     rich = []
 
-    # 检查是否需要重置会话
     cmd, _ = _parse_cmd(user_input)
     if cmd == "restart":
         params.clear()
         return "Sessie is herstart.", params, rich
 
-    # 获取由Dialogflow页面设置的当前回合上下文
-    current_round_ctx = params.get("round_context")
-    # 获取我们自己记录的、已处理过的回合上下文
+    # *** 最终修复：使用正确的键名来获取参数 ***
+    current_round_ctx = params.get("session.params.round_context")
     processed_round_ctx = params.get("processed_round_ctx")
 
-    # **核心逻辑：判断这是否是一个新回合的开始**
-    # 条件：Dialogflow传入了上下文，且该上下文我们尚未处理过
     if current_round_ctx and current_round_ctx != processed_round_ctx:
-        # 这是用户对主问题的回答，立即处理
         labels = classify_fn(user_input) or ""
         params.update(
             stage="followup",
@@ -246,12 +241,10 @@ def process_turn(
             current_label=None,
             cursor=0,
             asked_labels=[],
-            processed_round_ctx=current_round_ctx  # 关键：标记此回合已处理
+            processed_round_ctx=current_round_ctx
         )
-        # 在同一个回合中，直接返回第一个追问问题
         return _next_followup(params, rich)
 
-    # 对于回合内的后续交互（回答追问、选择chips）
     stage = params.get("stage")
 
     if stage == "followup":
@@ -260,26 +253,24 @@ def process_turn(
     if stage == "choose_label":
         lower = user_input.strip().lower()
 
-        # 用户选择结束本轮讨论
         if lower == "none" or lower.startswith("geen"):
             if current_round_ctx == 'meest':
                 params['go_next_round'] = True
                 return "Ok, we gaan door naar de volgende vraag.", params, rich
-            else:  # minst round
+            else:
                 params['survey_complete'] = True
                 return "Bedankt voor het delen! We zijn klaar.", params, rich
         else:
-            # 用户从chips中选择了新主题
             params.update(current_label=lower, cursor=0, stage="followup")
             return _next_followup(params, rich)
 
-    # 如果状态未知（理论上不应发生），返回一个错误提示
     return "Sorry, er is iets misgegaan. Probeer het opnieuw.", params, rich
 
 
 # ---------- follow-up helper (此函数保持不变) -------------------
 def _next_followup(params: dict, rich: list):
-    ctx = params.get("round_context")
+    # *** 最终修复：同样使用正确的键名来获取参数 ***
+    ctx = params.get("session.params.round_context")
     if not ctx:
         return "Error: Context (meest/minst) not found in session.", params, rich
 
