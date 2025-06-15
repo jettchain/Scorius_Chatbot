@@ -78,12 +78,13 @@ import io, os, zipfile, pathlib, logging
 from typing import List, Set
 
 from google.cloud import storage
-from vertexai.generative_models import GenerativeModel
+from vertexai.generative_models import GenerativeModel, Part
 from langchain_chroma import Chroma
 
 # ---- 依赖于你项目里的 util / embedding ----------------------------
 from rag_embeddings import GeminiEmbeddings
 from rag_utils import build_prompt, extract_intents
+from intents_dictionary import INTENTS
 # --------------------------------------------------------------------
 
 # ─────────────────── 环境变量 ────────────────────
@@ -93,6 +94,16 @@ LLM_NAME = "gemini-2.0-flash-lite-001"
 
 # --- DEBUG: 全局变量，用于缓存模型 ---
 _rag_pipeline = None
+
+# --- 构建 System Instruction ---
+AVAILABLE_LABELS = ", ".join(INTENTS)
+SYSTEM_INSTRUCTION = [
+    Part.from_text("You are an expert text classifier for employee feedback."),
+    Part.from_text("Your mission is to identify one or more predefined labels that are most relevant to the user's input."),
+    Part.from_text(f"You MUST ONLY respond with a comma-separated list of the most relevant labels from the following list: {AVAILABLE_LABELS}"),
+    Part.from_text("If no specific labels seem to match perfectly, you MUST still choose the single most likely or related label. Do not leave the output empty."),
+    Part.from_text("Analyze the user's input provided in the prompt and return only the label(s).")
+]
 
 def _initialize_pipeline():
     """初始化并返回 RAG pipeline 的所有组件。"""
@@ -135,6 +146,7 @@ def _initialize_pipeline():
             "top_p": 0.5,
             "max_output_tokens": 128,
         },
+        system_instruction=SYSTEM_INSTRUCTION
     )
     print("--- DEBUG: GenerativeModel initialized. ---")
 
@@ -162,7 +174,7 @@ def rag_predict(text: str) -> str:
         print("--- DEBUG: build_prompt finished. ---")
 
         print("--- DEBUG: Calling model.generate_content... ---")
-        resp = model.generate_content(prompt).text
+        resp = model.generate_content([prompt]).text
         print("--- DEBUG: model.generate_content finished. ---")
 
         print("--- DEBUG: Calling extract_intents... ---")
