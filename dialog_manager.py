@@ -110,7 +110,7 @@ def _parse_cmd(text: str | None) -> tuple[str, str | None]:
 
 def _ask_next_evaluation_question(params: dict, rich: list) -> Tuple[str, dict]:
     """根据索引提出下一个评估问题，或者结束对话。"""
-    eval_idx = params.get("evaluation_idx", 0)
+    eval_idx = int(params.get("evaluation_idx", 0))
 
     if eval_idx < len(EVALUATION_QUESTIONS):
         question_data = EVALUATION_QUESTIONS[eval_idx]
@@ -211,7 +211,7 @@ def process_turn(
 
         if score_text.isdigit() and 1 <= int(score_text) <= 5:
             session_id = params.get("session.id", "unknown_session")
-            last_eval_idx = params.get("evaluation_idx", 1) - 1
+            last_eval_idx = int(params.get("evaluation_idx", 1)) - 1
             last_question_id = EVALUATION_QUESTIONS[last_eval_idx]["id"]
 
             print(f"--- EVALUATION RESPONSE CAPTURED ---\n"
@@ -224,7 +224,7 @@ def process_turn(
             return reply, params, rich
         else:
             # 如果输入无效，重新提问并再次显示chips
-            last_eval_idx = params.get("evaluation_idx", 1) - 1
+            last_eval_idx = int(params.get("evaluation_idx", 1)) - 1
             question_data = EVALUATION_QUESTIONS[last_eval_idx]
             rich.append(build_descriptive_rating_chips(question_data["scale_labels"]))
             return f"Graag een keuze maken via de knoppen. {question_data['text']}", params, rich
