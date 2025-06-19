@@ -9,178 +9,21 @@ from intents_dictionary import (
     POOL_MINST,
     POOL_MEEST,
 )
+from evaluation_questions import EVALUATION_QUESTIONS
 
 FOLLOWUP_POOLS = {"meest": POOL_MEEST, "minst": POOL_MINST}
 
-# ── 主问题配置 ─────────────────────────────────────────────
-# MAIN_QUESTIONS = [
-#     {"text": "Waar ben je het meest tevreden over in je werk?", "ctx": "meest"},
-#     {"text": "Waar ben je het minst tevreden over in je werk?", "ctx": "minst"},
-# ]
+def build_descriptive_rating_chips(scale_labels: Dict[str, str]) -> dict:
+    """根据提供的完整标签集构建所有五个描述性评分chips。"""
+    options = []
+    # 循环1到5，为每个分数创建带描述的按钮
+    for i in range(1, 6):
+        score_str = str(i)
+        description = scale_labels.get(score_str, score_str)  # 如果没找到描述，就用数字本身
+        options.append({"text": f"{score_str} ({description})"})
 
-# ── chips 构建 ────────────────────────────────────────────
-# def build_topic_chip_message(topics: list[str]) -> dict:
-#     opts = [{"text": "Geen onderwerp"} if t == "none"
-#             else {"text": t.capitalize()} for t in topics]
-#     return {"payload": {"richContent": [[{"type": "chips", "options": opts}]]}}
-#
-# GROUP_TO_LABELS = defaultdict(list)
-# for lbl, meta in LABEL_META.items():
-#     GROUP_TO_LABELS[meta["group"]].append(lbl)
-#
-# def _suggest_next_labels(*, current_label: str|None,
-#                          asked_labels: Set[str], ctx: str) -> list[str]:
-#     cand: list[str] = []
-#     if current_label:
-#         grp = LABEL_META[current_label]["group"]
-#         cand += [l for l in GROUP_TO_LABELS[grp]
-#                  if l not in asked_labels and FOLLOWUP_POOLS[ctx].get(l)]
-#     if len(cand) < 8:
-#         backlog = sorted(
-#             (l for l in INTENTS if l not in asked_labels and l not in cand
-#              and FOLLOWUP_POOLS[ctx].get(l)),
-#             key=lambda x: LABEL_META[x]["weight"], reverse=True)
-#         cand += backlog[:8-len(cand)]
-#     return cand + ["none"]
-#
-# def _parse_cmd(text: str|None)->tuple[str,str|None]:
-#     if not text:
-#         return "", None
-#     t=text.strip().lower()
-#     if t in {"restart","opnieuw"}: return "restart",None
-#     return "",None
-#
-# # ───────────────────────────────────────────────────────────
-# def process_turn(
-#     *, user_input: str|None, params: Dict[str,Any],
-#     classify_fn: Callable[[str],str]
-# )->Tuple[str,Dict[str,Any],list]:
-#     if user_input is None: user_input=""
-#
-#     # 初次进入：补齐必需键
-#     params.setdefault("stage", "main")
-#     params.setdefault("main_idx", 0)
-#     params.setdefault("asked_labels", [])
-#
-#     rich: list = []
-#
-#     # commands
-#     cmd,_=_parse_cmd(user_input)
-#     if cmd=="restart":
-#         params.clear()
-#         params.update(stage="main", main_idx=0)
-#         return MAIN_QUESTIONS[0]["text"], params, rich
-#
-#     stage = params.get("stage","main")
-#
-#     # ── main ───────────────────────────────────────────────
-#     if stage=="main":
-#         idx = int(params.get("main_idx", 0))
-#         ctx = MAIN_QUESTIONS[idx]["ctx"]
-#
-#         labels = classify_fn(user_input) or ""
-#         queue = [l.strip() for l in labels.split(",") if l.strip()]
-#
-#         params.update(
-#             stage="followup",
-#             label_queue=queue,
-#             current_label=None,
-#             cursor=0,
-#             asked_labels=[],
-#             main_idx=idx,               # ← 写回，保证后续存在
-#         )
-#         return _next_followup(params, MAIN_QUESTIONS[idx], rich)
-#
-#     # ── follow-up ──────────────────────────────────────────
-#     if stage=="followup":
-#         idx=int(params.get("main_idx",0))
-#         return _next_followup(params, MAIN_QUESTIONS[idx], rich)
-#
-#     # ── choose_label ──────────────────────────────────────
-#     if stage == "choose_label":
-#         lower = (user_input or "").strip().lower()
-#         if lower == "none" or lower.startswith("geen"):
-#             current_idx = int(params.get("main_idx", 0))
-#             next_idx = current_idx + 1
-#
-#             # 如果第一个主问题 (main_idx=0) 刚刚结束
-#             if current_idx == 0:
-#                 params['go_next_round'] = True
-#                 # 注意：这里我们立即返回，让 Dialogflow CX 处理页面跳转
-#                 # 我们不在 webhook 内部直接返回下一个问题
-#                 # Dialogflow CX 会根据 go_next_round=true 跳转到 Survey2 页面
-#                 # Survey2 页面的 onLoad 会提出第二个主问题
-#                 return "Ok, we gaan door naar de volgende vraag.", params, rich
-#
-#             if next_idx < len(MAIN_QUESTIONS):
-#                 params.update(stage="main", main_idx=next_idx,
-#                               label_queue=[], current_label=None, cursor=0)
-#                 return MAIN_QUESTIONS[next_idx]["text"], params, rich
-#
-#             # 当所有问题都结束后，设置一个最终完成的标志
-#             params['survey_complete'] = True
-#             return "Bedankt voor het delen! We zijn klaar.", params, rich
-#     # if stage=="choose_label":
-#     #     lower=(user_input or "").strip().lower()
-#     #     if lower=="none" or lower.startswith("geen"):
-#     #         next_idx=int(params.get("main_idx",0))+1
-#     #         if next_idx < len(MAIN_QUESTIONS):
-#     #             params.update(stage="main", main_idx=next_idx,
-#     #                           label_queue=[], current_label=None, cursor=0)
-#     #             return MAIN_QUESTIONS[next_idx]["text"], params, rich
-#     #         return "Bedankt voor het delen! We zijn klaar.", params, rich
-#
-#         params.update(current_label=lower, cursor=0, stage="followup")
-#         idx=int(params.get("main_idx",0))
-#         return _next_followup(params, MAIN_QUESTIONS[idx], rich)
-#
-#     return "Sorry, ik begrijp het niet.", params, rich
-#
-#
-# # ---------- follow-up helper ---------------------------------
-# def _next_followup(params: dict, cfg: dict, rich: list):
-#     ctx = cfg["ctx"]                         # "minst" / "meest"
-#     pool_dict = FOLLOWUP_POOLS[ctx]
-#
-#     # ---------- 1. 取 label -------------
-#     label = params.get("current_label")
-#     while not label:
-#         queue: list[str] = params.get("label_queue", [])
-#         if not queue:
-#             # 智能推荐 chips
-#             asked = set(params.get("asked_labels", []))
-#             chips = _suggest_next_labels(
-#                 current_label=None, asked_labels=asked, ctx=ctx
-#             )
-#             params.update(stage="choose_label")
-#             rich.append(build_topic_chip_message(chips))
-#             return (
-#                 "Wil je nog over een ander onderwerp praten?",
-#                 params,
-#                 rich,
-#             )
-#         label = queue.pop(0)
-#         params["current_label"] = label
-#         params["cursor"] = 0       # reset
-#
-#     # ---------- 2. 取问题 -------------
-#     pool = pool_dict.get(label, [])
-#     idx = int(params.get("cursor", 0) or 0)
-#
-#     if idx >= len(pool):           # 该 label 没题 or 已问完
-#         # 只在真的有 pool 时把它计入 asked_labels
-#         if pool:
-#             asked = set(params.get("asked_labels", []))
-#             asked.add(label)
-#             params["asked_labels"] = list(asked)
-#
-#         # 清掉 current_label，继续队列
-#         params.update(current_label=None)
-#         return _next_followup(params, cfg, rich)
-#
-#     # ---------- 3. 输出问题 ------------
-#     params["cursor"] = idx + 1
-#     return pool[idx], params, rich
+    return {"payload": {"richContent": [[{"type": "chips", "options": options}]]}}
+
 def build_topic_chip_message(topics: list[str]) -> dict:
     opts = [{"text": "Geen onderwerp"} if t == "none"
             else {"text": t.capitalize()} for t in topics]
@@ -265,38 +108,25 @@ def _parse_cmd(text: str | None) -> tuple[str, str | None]:
     return "", None
 
 
+def _ask_next_evaluation_question(params: dict, rich: list) -> Tuple[str, dict]:
+    """根据索引提出下一个评估问题，或者结束对话。"""
+    eval_idx = params.get("evaluation_idx", 0)
+
+    if eval_idx < len(EVALUATION_QUESTIONS):
+        question_data = EVALUATION_QUESTIONS[eval_idx]
+        question_to_ask = question_data["text"]
+
+        # 使用新的chips构建函数
+        rich.append(build_descriptive_rating_chips(question_data["scale_labels"]))
+
+        params["evaluation_idx"] = eval_idx + 1
+        return question_to_ask, params
+    else:
+        params["stage"] = "end"
+        return "Hartelijk dank voor uw waardevolle feedback en uw tijd! Het gesprek is nu beëindigd.", params
+
+
 # ───────────────────────────────────────────────────────────
-def process_turn(
-        *, user_input: str | None, params: Dict[str, Any],
-        classify_fn: Callable[[str], str]
-) -> Tuple[str, Dict[str, Any], list]:
-    user_input = user_input or ""
-    rich = []
-
-    cmd, _ = _parse_cmd(user_input)
-    if cmd == "restart":
-        params.clear()
-        return "Sessie is herstart.", params, rich
-
-    current_round_ctx = params.get("session.params.round_context")
-    processed_round_ctx = params.get("processed_round_ctx")
-
-    if current_round_ctx and current_round_ctx != processed_round_ctx:
-        labels = classify_fn(user_input) or ""
-        # 原始识别的标签列表
-        initial_labels = [l.strip() for l in labels.split(",") if l.strip()]
-
-        params.update(
-            stage="followup",
-            label_queue=initial_labels.copy(),
-            # *** 新增：保存所有原始标签，用于权重计算 ***
-            all_detected_labels=initial_labels,
-            current_label=None,
-            cursor=0,
-            asked_labels=[], # 初始为空
-            processed_round_ctx=current_round_ctx
-        )
-        return _next_followup(params, rich)
 # def process_turn(
 #         *, user_input: str | None, params: Dict[str, Any],
 #         classify_fn: Callable[[str], str]
@@ -309,37 +139,112 @@ def process_turn(
 #         params.clear()
 #         return "Sessie is herstart.", params, rich
 #
-#     # *** 最终修复：使用正确的键名来获取参数 ***
 #     current_round_ctx = params.get("session.params.round_context")
 #     processed_round_ctx = params.get("processed_round_ctx")
 #
 #     if current_round_ctx and current_round_ctx != processed_round_ctx:
 #         labels = classify_fn(user_input) or ""
+#         # 原始识别的标签列表
+#         initial_labels = [l.strip() for l in labels.split(",") if l.strip()]
+#
 #         params.update(
 #             stage="followup",
-#             label_queue=[l.strip() for l in labels.split(",") if l.strip()],
+#             label_queue=initial_labels.copy(),
+#             # *** 新增：保存所有原始标签，用于权重计算 ***
+#             all_detected_labels=initial_labels,
 #             current_label=None,
 #             cursor=0,
-#             asked_labels=[],
+#             asked_labels=[], # 初始为空
 #             processed_round_ctx=current_round_ctx
 #         )
 #         return _next_followup(params, rich)
+#
+#     stage = params.get("stage")
+#
+#     if stage == "followup":
+#         return _next_followup(params, rich)
+#
+#     if stage == "choose_label":
+#         lower = user_input.strip().lower()
+#
+#         if lower == "none" or lower.startswith("geen"):
+#             if current_round_ctx == 'meest':
+#                 params['go_next_round'] = True
+#                 return "Ok, we gaan door naar de volgende vraag.", params, rich
+#             else:
+#                 params['survey_complete'] = True
+#                 return "Bedankt voor het delen! We zijn klaar.", params, rich
+#         else:
+#             params.update(current_label=lower, cursor=0, stage="followup")
+#             return _next_followup(params, rich)
+#
+#     return "Sorry, er is iets misgegaan. Probeer het opnieuw.", params, rich
+def process_turn(
+        *, user_input: str | None, params: Dict[str, Any],
+        classify_fn: Callable[[str], str]
+) -> Tuple[str, Dict[str, Any], list]:
+    user_input = user_input or ""
+    rich = []
+
+    cmd, _ = _parse_cmd(user_input)
+    if cmd == "restart":
+        params.clear()
+        return "Sessie is herstart.", params, rich
 
     stage = params.get("stage")
+    current_round_ctx = params.get("session.params.round_context")
+    processed_round_ctx = params.get("processed_round_ctx")
+
+    if current_round_ctx and current_round_ctx != processed_round_ctx:
+        labels = classify_fn(user_input) or ""
+        initial_labels = [l.strip() for l in labels.split(",") if l.strip()]
+        params.update(
+            stage="followup", label_queue=initial_labels.copy(),
+            all_detected_labels=initial_labels, current_label=None,
+            cursor=0, asked_labels=[], processed_round_ctx=current_round_ctx
+        )
+        return _next_followup(params, rich)
+
+    if stage == "final_evaluation":
+        # MODIFIED: 更新评分捕获逻辑以处理 "1 (Description)" 格式
+        score_text = user_input.strip().split(" ")[0]  # 取空格前第一个部分
+
+        if score_text.isdigit() and 1 <= int(score_text) <= 5:
+            session_id = params.get("session.id", "unknown_session")
+            last_eval_idx = params.get("evaluation_idx", 1) - 1
+            last_question_id = EVALUATION_QUESTIONS[last_eval_idx]["id"]
+
+            print(f"--- EVALUATION RESPONSE CAPTURED ---\n"
+                  f"Session: {session_id}\n"
+                  f"Metric: {last_question_id}\n"
+                  f"Score: {score_text}\n"
+                  f"------------------------------------")
+
+            reply, params = _ask_next_evaluation_question(params, rich)
+            return reply, params, rich
+        else:
+            # 如果输入无效，重新提问并再次显示chips
+            last_eval_idx = params.get("evaluation_idx", 1) - 1
+            question_data = EVALUATION_QUESTIONS[last_eval_idx]
+            rich.append(build_descriptive_rating_chips(question_data["scale_labels"]))
+            return f"Graag een keuze maken via de knoppen. {question_data['text']}", params, rich
 
     if stage == "followup":
         return _next_followup(params, rich)
 
     if stage == "choose_label":
         lower = user_input.strip().lower()
-
         if lower == "none" or lower.startswith("geen"):
             if current_round_ctx == 'meest':
                 params['go_next_round'] = True
                 return "Ok, we gaan door naar de volgende vraag.", params, rich
             else:
-                params['survey_complete'] = True
-                return "Bedankt voor het delen! We zijn klaar.", params, rich
+                # MODIFIED: 这里是您指定的整合点
+                # 主流程结束，启动最终评估
+                params['stage'] = 'final_evaluation'
+                params['evaluation_idx'] = 0
+                reply, params = _ask_next_evaluation_question(params, rich)
+                return reply, params, rich
         else:
             params.update(current_label=lower, cursor=0, stage="followup")
             return _next_followup(params, rich)
@@ -378,21 +283,6 @@ def _next_followup(params: dict, rich: list):
                 params,
                 rich,
             )
-    # label = params.get("current_label")
-    # while not label:
-    #     queue: list[str] = params.get("label_queue", [])
-    #     if not queue:
-    #         asked = set(params.get("asked_labels", []))
-    #         chips = _suggest_next_labels(
-    #             current_label=None, asked_labels=asked, ctx=ctx
-    #         )
-    #         params.update(stage="choose_label")
-    #         rich.append(build_topic_chip_message(chips))
-    #         return (
-    #             "Wil je nog over een ander onderwerp praten?",
-    #             params,
-    #             rich,
-    #         )
         label = queue.pop(0)
         if not pool_dict.get(label):
             label = None
