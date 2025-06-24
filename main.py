@@ -194,6 +194,14 @@ def handle_gemini(req_json: Dict[str, Any]) -> Dict[str, Any]:
     params = sess.get("parameters") or {}
     user_text = _extract_user_text(req_json)
     print(f"--- DEBUG: User text extracted: {user_text[:100]} ---")
+    # --- FIX STARTS HERE ---
+    # 从 sessionInfo 对象中获取完整的 session 路径
+    session_path = sess.get("session")
+    if session_path:
+        # 将 session 路径添加到 params 字典中，键名为 "session.id"
+        # 这样 process_turn 函数就能通过 params.get("session.id") 获取到它了
+        params["session.id"] = session_path
+    # --- FIX ENDS HERE ---
 
     print("--- DEBUG: Calling process_turn ---")
     reply, new_params, rich = process_turn(
