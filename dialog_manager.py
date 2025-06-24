@@ -3,10 +3,9 @@ import re
 from typing import Dict, Any, Callable, Tuple, List, Set
 from collections import defaultdict
 from google.cloud import firestore
-from google.cloud.firestore_v2.base_client import BaseClient
-from google.cloud.firestore_v2.types import WriteResult
 
-db: BaseClient = firestore.Client()
+
+db = firestore.Client()
 SERVER_TIMESTAMP = firestore.SERVER_TIMESTAMP
 SESSIONS_COLLECTION = "pilot_sessions"
 
@@ -133,19 +132,17 @@ def _ask_next_evaluation_question(params: dict, rich: list) -> Tuple[str, dict]:
         return "Hartelijk dank voor uw waardevolle feedback en uw tijd! Het gesprek is nu beëindigd.", params
 
 
-def log_session_data(session_id: str, data: Dict[str, Any]) -> WriteResult | None:
+def log_session_data(session_id: str, data: Dict[str, Any]):
     """將數據寫入或合併到指定的會話文檔中。"""
     if not session_id:
         print("--- WARNING: Missing session_id, skipping Firestore log. ---")
-        return None
-
-    # 始終包含 last_update 時間戳
+        return
+    
     data_to_write = data.copy()
     data_to_write["last_update"] = SERVER_TIMESTAMP
 
     doc_ref = db.collection(SESSIONS_COLLECTION).document(session_id)
-    # 使用 merge=True 可以更新字段，而不會覆蓋整個文檔
-    return doc_ref.set(data_to_write, merge=True)
+    doc_ref.set(data_to_write, merge=True)
 
 # def process_turn(
 #         *, user_input: str | None, params: Dict[str, Any],
