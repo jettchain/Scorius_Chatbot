@@ -2,6 +2,13 @@ from __future__ import annotations
 import re
 from typing import Dict, Any, Callable, Tuple, List, Set
 from collections import defaultdict
+from google.cloud import firestore
+from google.cloud.firestore_v2.base_client import BaseClient
+from google.cloud.firestore_v2.types import WriteResult
+
+db: BaseClient = firestore.Client()
+SERVER_TIMESTAMP = firestore.SERVER_TIMESTAMP
+SESSIONS_COLLECTION = "pilot_sessions"
 
 from intents_dictionary import (
     INTENTS,
@@ -125,77 +132,21 @@ def _ask_next_evaluation_question(params: dict, rich: list) -> Tuple[str, dict]:
         params["stage"] = "end"
         return "Hartelijk dank voor uw waardevolle feedback en uw tijd! Het gesprek is nu beëindigd.", params
 
-def process_turn(
-        *, user_input: str | None, params: Dict[str, Any],
-        classify_fn: Callable[[str], str]
-) -> Tuple[str, Dict[str, Any], list]:
-    user_input = user_input or ""
-    rich = []
 
-    cmd, _ = _parse_cmd(user_input)
-    if cmd == "restart":
-        params.clear()
-        return "Sessie is herstart.", params, rich
+def log_session_data(session_id: str, data: Dict[str, Any]) -> WriteResult | None:
+    """將數據寫入或合併到指定的會話文檔中。"""
+    if not session_id:
+        print("--- WARNING: Missing session_id, skipping Firestore log. ---")
+        return None
 
-    stage = params.get("stage")
-    current_round_ctx = params.get("session.params.round_context")
-    processed_round_ctx = params.get("processed_round_ctx")
+    # 始終包含 last_update 時間戳
+    data_to_write = data.copy()
+    data_to_write["last_update"] = SERVER_TIMESTAMP
 
-    if current_round_ctx and current_round_ctx != processed_round_ctx:
-        labels = classify_fn(user_input) or ""
-        initial_labels = [l.strip() for l in labels.split(",") if l.strip()]
-        params.update(
-            stage="followup", label_queue=initial_labels.copy(),
-            all_detected_labels=initial_labels, current_label=None,
-            cursor=0, asked_labels=[], processed_round_ctx=current_round_ctx
-        )
-        return _next_followup(params, rich)
+    doc_ref = db.collection(SESSIONS_COLLECTION).document(session_id)
+    # 使用 merge=True 可以更新字段，而不會覆蓋整個文檔
+    return doc_ref.set(data_to_write, merge=True)
 
-    if stage == "final_evaluation":
-        # MODIFIED: 更新评分捕获逻辑以处理 "1 (Description)" 格式
-        score_text = user_input.strip().split(" ")[0]  # 取空格前第一个部分
-
-        if score_text.isdigit() and 1 <= int(score_text) <= 5:
-            session_id = params.get("session.id", "unknown_session")
-            last_eval_idx = int(params.get("evaluation_idx", 1)) - 1
-            last_question_id = EVALUATION_QUESTIONS[last_eval_idx]["id"]
-
-            print(f"--- EVALUATION RESPONSE CAPTURED ---\n"
-                  f"Session: {session_id}\n"
-                  f"Metric: {last_question_id}\n"
-                  f"Score: {score_text}\n"
-                  f"------------------------------------")
-
-            reply, params = _ask_next_evaluation_question(params, rich)
-            return reply, params, rich
-        else:
-            # 如果输入无效，重新提问并再次显示chips
-            last_eval_idx = int(params.get("evaluation_idx", 1)) - 1
-            question_data = EVALUATION_QUESTIONS[last_eval_idx]
-            rich.append(build_descriptive_rating_chips(question_data["scale_labels"]))
-            return f"Graag een keuze maken via de knoppen. {question_data['text']}", params, rich
-
-    if stage == "followup":
-        return _next_followup(params, rich)
-
-    if stage == "choose_label":
-        lower = user_input.strip().lower()
-        if lower == "none" or lower.startswith("geen"):
-            if current_round_ctx == 'meest':
-                params['go_next_round'] = True
-                return "Ok, we gaan door naar de volgende vraag.", params, rich
-            else:
-                # MODIFIED: 这里是您指定的整合点
-                # 主流程结束，启动最终评估
-                params['stage'] = 'final_evaluation'
-                params['evaluation_idx'] = 0
-                reply, params = _ask_next_evaluation_question(params, rich)
-                return reply, params, rich
-        else:
-            params.update(current_label=lower, cursor=0, stage="followup")
-            return _next_followup(params, rich)
-
-    return "Sorry, er is iets misgegaan. Probeer het opnieuw.", params, rich
 # def process_turn(
 #         *, user_input: str | None, params: Dict[str, Any],
 #         classify_fn: Callable[[str], str]
@@ -203,18 +154,9 @@ def process_turn(
 #     user_input = user_input or ""
 #     rich = []
 #
-#     # --- Firestore 日志记录: 从 Dialogflow 参数中提取会话 ID ---
-#     session_full_path = params.get("session.id", "")
-#     session_id = session_full_path.split('/')[-1] if session_full_path else None
-#     # ----------------------------------------------------
-#
 #     cmd, _ = _parse_cmd(user_input)
 #     if cmd == "restart":
 #         params.clear()
-#         # --- Firestore 日志记录: 记录会话重启事件 ---
-#         if session_id:
-#             log_session_data(session_id, {"status": "restarted", "last_update": SERVER_TIMESTAMP})
-#         # ----------------------------------------
 #         return "Sessie is herstart.", params, rich
 #
 #     stage = params.get("stage")
@@ -223,23 +165,6 @@ def process_turn(
 #
 #     if current_round_ctx and current_round_ctx != processed_round_ctx:
 #         labels = classify_fn(user_input) or ""
-#         # --- Firestore 日志记录: 记录初始长文本回答和分类标签 ---
-#         if session_id:
-#             # 准备要记录的数据
-#             turn_data = prepare_conversation_turn(
-#                 user_input=user_input,
-#                 bot_reply="Generating follow-up questions...", # 这是一个临时的机器人回复
-#                 labels=labels,
-#                 stage=f"initial_input_{current_round_ctx}",
-#                 timestamp=SERVER_TIMESTAMP
-#             )
-#             # 将此特定文本标记为初始输入
-#             turn_data['initial_user_text'] = firestore.ArrayUnion([
-#                 {"context": current_round_ctx, "text": user_input}
-#             ])
-#             log_session_data(session_id, turn_data)
-#         # -------------------------------------------------
-#
 #         initial_labels = [l.strip() for l in labels.split(",") if l.strip()]
 #         params.update(
 #             stage="followup", label_queue=initial_labels.copy(),
@@ -249,63 +174,175 @@ def process_turn(
 #         return _next_followup(params, rich)
 #
 #     if stage == "final_evaluation":
-#         score_text = user_input.strip().split(" ")[0]
+#         # MODIFIED: 更新评分捕获逻辑以处理 "1 (Description)" 格式
+#         score_text = user_input.strip().split(" ")[0]  # 取空格前第一个部分
 #
 #         if score_text.isdigit() and 1 <= int(score_text) <= 5:
+#             session_id = params.get("session.id", "unknown_session")
 #             last_eval_idx = int(params.get("evaluation_idx", 1)) - 1
 #             last_question_id = EVALUATION_QUESTIONS[last_eval_idx]["id"]
 #
-#             # --- Firestore 日志记录: 记录用户的 Likert 评分 ---
-#             if session_id:
-#                 eval_data = prepare_evaluation_data(params, score_text, last_question_id)
-#                 log_session_data(session_id, eval_data)
-#             # --------------------------------------------------
+#             print(f"--- EVALUATION RESPONSE CAPTURED ---\n"
+#                   f"Session: {session_id}\n"
+#                   f"Metric: {last_question_id}\n"
+#                   f"Score: {score_text}\n"
+#                   f"------------------------------------")
 #
 #             reply, params = _ask_next_evaluation_question(params, rich)
 #             return reply, params, rich
 #         else:
+#             # 如果输入无效，重新提问并再次显示chips
 #             last_eval_idx = int(params.get("evaluation_idx", 1)) - 1
 #             question_data = EVALUATION_QUESTIONS[last_eval_idx]
 #             rich.append(build_descriptive_rating_chips(question_data["scale_labels"]))
 #             return f"Graag een keuze maken via de knoppen. {question_data['text']}", params, rich
 #
-#     # 为后续的日志记录准备一个回复变量
-#     reply = ""
-#
 #     if stage == "followup":
-#         reply, params, rich = _next_followup(params, rich)
-#         # --- Firestore 日志记录: 记录对跟进问题的回答 ---
-#         if session_id and user_input:
-#              turn_data = prepare_conversation_turn(user_input, reply, "N/A (in follow-up loop)", stage, SERVER_TIMESTAMP)
-#              log_session_data(session_id, turn_data)
-#         # --------------------------------------------
-#         return reply, params, rich
+#         return _next_followup(params, rich)
 #
 #     if stage == "choose_label":
 #         lower = user_input.strip().lower()
 #         if lower == "none" or lower.startswith("geen"):
 #             if current_round_ctx == 'meest':
 #                 params['go_next_round'] = True
-#                 reply = "Ok, we gaan door naar de volgende vraag."
+#                 return "Ok, we gaan door naar de volgende vraag.", params, rich
 #             else:
+#                 # MODIFIED: 这里是您指定的整合点
+#                 # 主流程结束，启动最终评估
 #                 params['stage'] = 'final_evaluation'
 #                 params['evaluation_idx'] = 0
 #                 reply, params = _ask_next_evaluation_question(params, rich)
+#                 return reply, params, rich
 #         else:
 #             params.update(current_label=lower, cursor=0, stage="followup")
-#             reply, params, rich = _next_followup(params, rich)
+#             return _next_followup(params, rich)
 #
-#         # --- Firestore 日志记录: 记录用户选择的主题或流程变化 ---
-#         if session_id:
-#             turn_data = prepare_conversation_turn(user_input, reply, f"Chosen label/action: {user_input}", stage, SERVER_TIMESTAMP)
-#             log_session_data(session_id, turn_data)
-#         # ----------------------------------------------------
-#         return reply, params, rich
-#
-#     # 默认返回，以防出现意外情况
 #     return "Sorry, er is iets misgegaan. Probeer het opnieuw.", params, rich
 
-# ---------- follow-up helper (此函数保持不变) -------------------
+def process_turn(
+        *, user_input: str | None, params: Dict[str, Any],
+        classify_fn: Callable[[str], str]
+) -> Tuple[str, Dict[str, Any], list]:
+    user_input = user_input or ""
+    rich = []
+
+    # --- 從參數中提取會話ID ---
+    session_full_path = params.get("session.id", "")
+    session_id = session_full_path.split('/')[-1] if session_full_path else None
+
+    cmd, _ = _parse_cmd(user_input)
+    if cmd == "restart":
+        params.clear()
+        # 記錄重啟事件
+        if session_id:
+            log_session_data(session_id, {"status": "restarted"})
+        return "Sessie is herstart.", params, rich
+
+    stage = params.get("stage")
+    current_round_ctx = params.get("session.params.round_context")
+    processed_round_ctx = params.get("processed_round_ctx")
+
+    # 記錄每一輪對話的用戶輸入
+    if session_id and user_input and stage:
+        last_question = params.get("last_bot_question", "N/A")
+        turn_data = {
+            "conversation_history": firestore.ArrayUnion([{
+                "question": last_question,
+                "answer": user_input,
+                "timestamp": SERVER_TIMESTAMP
+            }])
+        }
+        log_session_data(session_id, turn_data)
+
+    if current_round_ctx and current_round_ctx != processed_round_ctx:
+        labels = classify_fn(user_input) or ""
+
+        # --- 記錄初始長文本回答和分類標籤 ---
+        if session_id:
+            turn_data = {
+                "initial_inputs": firestore.ArrayUnion([
+                    {"context": current_round_ctx, "text": user_input, "detected_labels": labels}
+                ]),
+                "status": "in_progress",
+                "session_id": session_id,
+            }
+            # 如果是第一個 'meest' 回合，則記錄開始時間
+            if not params.get("processed_round_ctx"):
+                turn_data["start_time"] = SERVER_TIMESTAMP
+
+            log_session_data(session_id, turn_data)
+
+        initial_labels = [l.strip() for l in labels.split(",") if l.strip()]
+        params.update(
+            stage="followup", label_queue=initial_labels.copy(),
+            all_detected_labels=initial_labels, current_label=None,
+            cursor=0, asked_labels=[], processed_round_ctx=current_round_ctx
+        )
+
+        reply, params, rich = _next_followup(params, rich)
+        params["last_bot_question"] = reply  # 保存機器人問題以便下一輪記錄
+        return reply, params, rich
+
+    if stage == "final_evaluation":
+        score_text = user_input.strip().split(" ")[0]
+
+        if score_text.isdigit() and 1 <= int(score_text) <= 5:
+            last_eval_idx = int(params.get("evaluation_idx", 1)) - 1
+            last_question_id = EVALUATION_QUESTIONS[last_eval_idx]["id"]
+
+            # --- 記錄 Likert 評分 ---
+            if session_id:
+                eval_data = {
+                    "evaluation_scores": {
+                        last_question_id: int(score_text)
+                    }
+                }
+                log_session_data(session_id, eval_data)
+
+            reply, params = _ask_next_evaluation_question(params, rich)
+
+            # 如果是最後一個問題，則標記會話完成
+            if params.get("stage") == "end" and session_id:
+                log_session_data(session_id, {"status": "completed"})
+
+            params["last_bot_question"] = reply
+            return reply, params, rich
+        else:
+            # 無效輸入，重新提問
+            last_eval_idx = int(params.get("evaluation_idx", 1)) - 1
+            question_data = EVALUATION_QUESTIONS[last_eval_idx]
+            rich.append(build_descriptive_rating_chips(question_data["scale_labels"]))
+            reply = f"Graag een keuze maken via de knoppen. {question_data['text']}"
+            params["last_bot_question"] = reply
+            return reply, params, rich
+
+    reply = ""
+
+    if stage == "followup":
+        reply, params, rich = _next_followup(params, rich)
+        params["last_bot_question"] = reply
+        return reply, params, rich
+
+    if stage == "choose_label":
+        lower = user_input.strip().lower()
+        if lower == "none" or lower.startswith("geen"):
+            if current_round_ctx == 'meest':
+                params['go_next_round'] = True
+                reply = "Ok, we gaan door naar de volgende vraag."
+            else:
+                params['stage'] = 'final_evaluation'
+                params['evaluation_idx'] = 0
+                reply, params = _ask_next_evaluation_question(params, rich)
+        else:
+            params.update(current_label=lower, cursor=0, stage="followup")
+            reply, params, rich = _next_followup(params, rich)
+
+        params["last_bot_question"] = reply
+        return reply, params, rich
+
+    # 兜底回覆
+    return "Sorry, er is iets misgegaan. Probeer het opnieuw.", params, rich
+
 def _next_followup(params: dict, rich: list):
     ctx = params.get("session.params.round_context")
     if not ctx:
