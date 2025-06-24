@@ -3,7 +3,7 @@ import re
 from typing import Dict, Any, Callable, Tuple, List, Set
 from collections import defaultdict
 from google.cloud import firestore
-
+from datetime import datetime, timezone
 
 db = firestore.Client()
 SERVER_TIMESTAMP = firestore.SERVER_TIMESTAMP
@@ -137,7 +137,7 @@ def log_session_data(session_id: str, data: Dict[str, Any]):
     if not session_id:
         print("--- WARNING: Missing session_id, skipping Firestore log. ---")
         return
-    
+
     data_to_write = data.copy()
     data_to_write["last_update"] = SERVER_TIMESTAMP
 
@@ -242,11 +242,14 @@ def process_turn(
     # 記錄每一輪對話的用戶輸入
     if session_id and user_input and stage:
         last_question = params.get("last_bot_question", "N/A")
+
+        turn_timestamp = datetime.now(timezone.utc)
+
         turn_data = {
             "conversation_history": firestore.ArrayUnion([{
                 "question": last_question,
                 "answer": user_input,
-                "timestamp": SERVER_TIMESTAMP
+                "timestamp": turn_timestamp
             }])
         }
         log_session_data(session_id, turn_data)
