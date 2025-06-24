@@ -10,8 +10,6 @@ from intents_dictionary import (
     POOL_MEEST,
 )
 from evaluation_questions import EVALUATION_QUESTIONS
-from firestore_logger import log_session_data, prepare_evaluation_data, prepare_conversation_turn
-from google.cloud.firestore import SERVER_TIMESTAMP
 
 FOLLOWUP_POOLS = {"meest": POOL_MEEST, "minst": POOL_MINST}
 
