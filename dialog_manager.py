@@ -229,7 +229,10 @@ def process_turn(
 
     cmd, _ = _parse_cmd(user_input)
     if cmd == "restart":
-        params.clear()
+        # params.clear()
+        clean_params = {}
+        if "session.id" in params:
+            clean_params["session.id"] = params.get("session.id")
         # 記錄重啟事件
         if session_id:
             log_session_data(session_id, {"status": "restarted"})
